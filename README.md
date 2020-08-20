@@ -30,7 +30,7 @@ print('Account:', account.id, account.name)
 ```
 Get all campaigns:
 ```
-campaigns = getresponse.get_campaigns({'sort': {'name', 'desc'}})
+campaigns = getresponse.get_campaigns({'sort[name]': 'desc'}})
 
 for campaign in campaigns:
     print('Campaign:' campaign.id, campaign.name)
@@ -40,6 +40,13 @@ Get a campaign:
 campaign = getresponse.get_campaign('CAMPAIGN_ID_HERE')
 
 print('Campaign:', campaign.id, campaign.name)
+```
+Search for a campaign:
+```
+my_campaign = getresponse.get_campaigns({
+    'query[name]': 'my_campaign_name',
+    'query[isDefault]': 'false'
+})
 ```
 Create a campaign:
 ```
@@ -55,7 +62,7 @@ except UniquePropertyError:
 ```
 Get all contacts:
 ```
-contacts = getresponse.get_contacts({'sort': {'name', 'desc'})
+contacts = getresponse.get_contacts({'sort[name]': 'desc'})
 for contact in contacts:
     print('Contact:', contact.id, contact.name)
 ```

@@ -18,5 +18,6 @@ setup(name='getresponse-python',
       packages=['getresponse'],
       install_requires=[
           'requests',
+          'python-dateutil',
       ],
       zip_safe=False)
