@@ -81,7 +81,7 @@ class GetResponse(object):
         return self._request('/campaigns', ObjType.CAMPAIGN, payload=params)
 
     def get_campaign(self, campaign_id, params=None):
-        """Retrieves campaign information
+        """Retrieves campaign information  
 
         Args:
             campaign_id: ID of the campaign
