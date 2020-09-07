@@ -184,7 +184,7 @@ class GetResponse(object):
         return self._request('/contacts', ObjType.CONTACT, payload=params)
 
     def get_all_contacts(self, campaign_ids=None, name=None, email=None, custom_fields=None,
-                         subscriber_types=Contact.SUBSCRIBER_TYPES):
+                         subscriber_types=None):
         """ Convenince function to get/search for all contacts no matter what subscribersType they are.
 
         GetResponse will only return contacts of subscribersType "subscribed". To really get all contacts linked to
@@ -208,6 +208,7 @@ class GetResponse(object):
         :return: list
             returns a list with contact objects
         """
+        subscriber_types = Contact.SUBSCRIBER_TYPES if not subscriber_types else subscriber_types
         _allowed_operators = ('is', 'is_not', 'contains', 'not_contains', 'starts', 'ends', 'not_starts', 'not_ends')
 
         # Search in all campaings
@@ -649,8 +650,21 @@ class GetResponse(object):
             response = self.session.get(
                 self.API_BASE_URL + api_method, params=payload, timeout=self.timeout)
             logger.debug("\"%s %s\" %s", http_method.name, response.url, response.status_code)
-            if response.status_code != 200:
-                return None
+            if response.status_code not in (200, 201, 202, 203, 204, 205, 206, 207, 208, 226):
+                logger.error(response.text)
+                error = response.json()
+                error_msg = error['message'] + u"\n" + str(error)
+                if error['code'] == 1000:
+                    raise ValidationError(error_msg, response=error)
+                if error['code'] == 1001:
+                    raise RelatedRecordNotFoundError(error_msg, response=error)
+                if error['code'] == 1013:
+                    raise NotFoundError(error_msg, response=error)
+                if error['code'] == 1002:
+                    raise ForbiddenError(error_msg, response=error)
+                if error['code'] == 1008:
+                    raise UniquePropertyError(error_msg, response=error)
+                raise Exception(error_msg)
             return self._create_obj(obj_type, response.json(), request_body=body, request_payload=payload)
 
         if http_method == HttpMethod.POST:
@@ -659,6 +673,7 @@ class GetResponse(object):
             logger.debug("\"%s %s\" %s", http_method.name, response.url, response.status_code)
             # https://apidocs.getresponse.com/v3/errors
             if response.status_code not in (200, 201, 202, 203, 204, 205, 206, 207, 208, 226):
+                logger.error(response.text)
                 error = response.json()
                 error_msg = error['message']+u"\n"+str(error)
                 if error['code'] == 1000:
