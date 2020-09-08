@@ -650,8 +650,10 @@ class GetResponse(object):
             response = self.session.get(
                 self.API_BASE_URL + api_method, params=payload, timeout=self.timeout)
             logger.debug("\"%s %s\" %s", http_method.name, response.url, response.status_code)
+            # 200'er range = request OK !
+            # ATTENTION: !!NOT!! in
             if response.status_code not in (200, 201, 202, 203, 204, 205, 206, 207, 208, 226):
-                logger.error(response.text)
+                logger.error('%s\n%s' % (response.text, response.request))
                 error = response.json()
                 error_msg = error['message'] + u"\n" + str(error)
                 if error['code'] == 1000:
@@ -665,6 +667,9 @@ class GetResponse(object):
                 if error['code'] == 1008:
                     raise UniquePropertyError(error_msg, response=error)
                 raise Exception(error_msg)
+            if response.status_code == 202:
+                logger.warning("Resource not ready in GetResponse! Object is not ready yet (still in creation/update)")
+                return True
             return self._create_obj(obj_type, response.json(), request_body=body, request_payload=payload)
 
         if http_method == HttpMethod.POST:
@@ -672,8 +677,10 @@ class GetResponse(object):
                 self.API_BASE_URL + api_method, json=body, params=payload, timeout=self.timeout)
             logger.debug("\"%s %s\" %s", http_method.name, response.url, response.status_code)
             # https://apidocs.getresponse.com/v3/errors
+            # 200'er range = request OK !
+            # ATTENTION: !!NOT!! in
             if response.status_code not in (200, 201, 202, 203, 204, 205, 206, 207, 208, 226):
-                logger.error(response.text)
+                logger.error('%s\n%s' % (response.text, response.request))
                 error = response.json()
                 error_msg = error['message']+u"\n"+str(error)
                 if error['code'] == 1000:
@@ -689,6 +696,7 @@ class GetResponse(object):
                 raise Exception(error_msg)
             if response.status_code == 202:
                 # Object is not ready yet (still in creation/update)
+                logger.warning("Resource not ready in GetResponse! Object is not ready yet (still in creation/update)")
                 return True
             return self._create_obj(obj_type, response.json(), request_body=body, request_payload=payload)
 
