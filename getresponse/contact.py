@@ -31,7 +31,7 @@ class Contact(object):
         self.subscribers_type = None
 
     def __repr__(self):
-        return "<Contact(id='{}', name='{}', email='{}'>".format(self.id, self.name, self.email)
+        return u"<Contact(id='{}', name='{}', email='{}'>".format(self.id, self.name, self.email).encode('utf-8')
 
 
 class ContactManager(object):

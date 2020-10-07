@@ -1,5 +1,6 @@
 import logging
 import requests
+from copy import deepcopy
 from getresponse.enums import HttpMethod, ObjType
 from .account import AccountManager
 from .campaign import CampaignManager
@@ -153,7 +154,7 @@ class GetResponse(object):
         """
         return self._request('/campaigns/{}/contacts'.format(campaign_id), ObjType.CONTACT)
 
-    def get_contacts(self, params=None):
+    def get_contacts(self, params=None, per_page=None, page=None):
         """Retrieve contacts from all campaigns
 
         Args:
@@ -181,15 +182,56 @@ class GetResponse(object):
         Returns:
             list: Contact
         """
-        return self._request('/contacts', ObjType.CONTACT, payload=params)
+        local_params = deepcopy(params) if params else {}
+
+        if per_page:
+            assert 'perPage' not in local_params, "'perPage' was found in 'local_params' and in 'per_page'! Use one only!"
+            assert 0 < per_page <= 1000, "The maximum number of contacts per page is 1000 the minimum is 1!"
+            local_params['perPage'] = per_page
+        elif 'perPage' in local_params:
+            per_page = local_params['perPage']
+        if per_page:
+            per_page = int(per_page)
+            local_params['perPage'] = per_page
+
+        if page:
+            assert 'page' not in local_params, "'page' was found in 'local_params' and in 'page'! Use one only!"
+        elif 'page' in local_params:
+            page = local_params['page']
+        if page:
+            page = int(page)
+
+        all_contacts = list()
+
+        # Get contacts paginated
+        paged_contacts = True
+        current_page = deepcopy(page) if page else 1
+        paged_payload = deepcopy(local_params)
+        while paged_contacts and current_page:
+            paged_payload['page'] = current_page
+            paged_contacts = self._request('/contacts', ObjType.CONTACT, payload=paged_payload)
+
+            # Append the found contacts to the result
+            all_contacts.extend(paged_contacts)
+
+            # Stop the while loop if 'page' is given
+            if page:
+                current_page = False
+            # Move on to the next page if 'page' is not given
+            else:
+                current_page += 1
+
+        return all_contacts
 
     def get_all_contacts(self, campaign_ids=None, name=None, email=None, custom_fields=None,
-                         subscriber_types=None):
+                         subscriber_types=None, per_page=None, page=None, params=None):
         """ Convenince function to get/search for all contacts no matter what subscribersType they are.
 
         GetResponse will only return contacts of subscribersType "subscribed". To really get all contacts linked to
         a campaign you need to do contact searches for every subscribersType. This function eases the process of 
         creating a contact search request for every subscribersType.
+
+        Example:  get_all_contacts(subscriber_types=['subscribed', 'unconfirmed'])
 
         I also simplyfies the search for contacts with a specific name or email:
         E.g. get_all_contacts(name=('contains', 'Max') email='max@mustermann.com') will return all contacts for
@@ -211,13 +253,13 @@ class GetResponse(object):
         subscriber_types = Contact.SUBSCRIBER_TYPES if not subscriber_types else subscriber_types
         _allowed_operators = ('is', 'is_not', 'contains', 'not_contains', 'starts', 'ends', 'not_starts', 'not_ends')
 
-        # Search in all campaings
+        # Search for all campaings if no campaing ids are given
         if not campaign_ids:
             all_campaigns = self.get_campaigns({})
             campaign_ids = [c.id for c in all_campaigns]
-        all_contacts = list()
 
-        # Add search conditions
+        # ADD SEARCH CONDITIONS
+        # ---------------------
         conditions = []
         if name:
             if isinstance(name, basestring):
@@ -258,9 +300,12 @@ class GetResponse(object):
                     cf_condition['value'] = value
                 conditions.append(cf_condition)
 
-        # Search for the contacts (for any given subscriber_type)
+        # SEARCH FOR THE CONTACTS FOR ANY GIVEN SUBSCRIBER_TYPE
+        # -----------------------------------------------------
+        all_contacts = list()
         for subscriber_type in subscriber_types:
-            contacts = self.search_contacts({
+
+            body = {
                 "subscribersType": [
                     subscriber_type
                 ],
@@ -277,10 +322,12 @@ class GetResponse(object):
                         "conditions": conditions
                     }
                 ]
-            })
-            all_contacts.extend(contacts)
+            }
 
-        # Return a list with contact objects
+            # Paginated search for contacts of subscribers
+            subscriber_type_contacts = self.search_contacts(body, per_page=per_page, page=page, params=params)
+            all_contacts.extend(subscriber_type_contacts)
+
         return all_contacts
 
     def get_contact(self, contact_id, params=None):
@@ -564,10 +611,11 @@ class GetResponse(object):
     def send_draft_newsletter(self):
         return NotImplementedError
 
-    def search_contacts(self, body):
+    def search_contacts(self, body, per_page=100, page=None, params=None):
         """Search for contacts without storing the contact search (segment)
 
         Args:
+            body: conditions for the search
             params: payload of the search
 
         Examples:
@@ -610,12 +658,57 @@ class GetResponse(object):
                                         ]
                                     }
                                 ]
-                            })
+                            },
+                            params={'perPage': 50, 'page': 1})
+
+        Options for params:
+            query	hash	Used to search only resources that meet the criteria. You can specify multiple parameters. Then, the AND logic is applied. Available search parameters: name=*, createdOn[from]=Y-m-d, createdOn[to]=Y-m-d, i.e. ?query[name]=my+custom+filer&query[createdOn][from]=2018-04-01&query[createdOn][to]=2018-04-11
+            fields	string	List of fields that should be returned. Id is always returned. Fields should be separated by comma. Available field names depends on request: name, createdOn, href. i.e.: ?fields=name,createdOn
+            sort	hash	Enable sorting using specified field (set as a key) and order (set as a value). You can specify multiple fields to sort by. Available keys name=asc|desc and createdOn=asc|desc. i.e: ?sort[name]=desc&createdOn=asc
+            page	integer	Specify which page of results should return.
+            perPage	integer	Specify how many results per page should be returned. The maximum allowed number of results is 1000. Up to 8 conditions are allowed.
 
         Returns:
             list: Contact
         """
-        return self._request('/search-contacts/contacts', ObjType.CONTACT, HttpMethod.POST, body)
+        local_params = deepcopy(params) if params else {}
+
+        if per_page:
+            assert 'perPage' not in local_params, "'perPage' was found in 'local_params' and in 'per_page'! Use one only!"
+            assert 0 < per_page <= 1000, "The maximum number of contacts per page is 1000 the minimum is 1!"
+            local_params['perPage'] = per_page
+        elif 'perPage' in local_params:
+            per_page = local_params['perPage']
+        if per_page:
+            per_page = int(per_page)
+            local_params['perPage'] = per_page
+
+        if page:
+            assert 'page' not in local_params, "'page' was found in 'local_params' and in 'page'! Use one only!"
+        elif 'page' in local_params:
+            page = local_params['page']
+        if page:
+            page = int(page)
+
+        # Get contacts paginated
+        all_contacts = list()
+        paged_contacts = True
+        current_page = deepcopy(page) if page else 1
+        paged_payload = deepcopy(local_params)
+        while paged_contacts and current_page:
+            paged_payload['page'] = current_page
+            paged_contacts = self._request('/search-contacts/contacts', ObjType.CONTACT, HttpMethod.POST,
+                                           body=body, payload=paged_payload)
+            all_contacts.extend(paged_contacts)
+
+            # Stop the while loop if 'page' is given
+            if page:
+                current_page = False
+            # Move on to the next page if 'page' is not given
+            else:
+                current_page += 1
+
+        return all_contacts
 
     def get_contacts_search(self):
         return NotImplementedError
