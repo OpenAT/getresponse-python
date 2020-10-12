@@ -55,7 +55,7 @@ class GetResponse(object):
         """
         return True if self.accounts() else False
 
-    def get_campaigns(self, params=None):
+    def get_campaigns(self, per_page=None, page=None, params=None):
         """Retrieve campaigns information
 
         Args:
@@ -79,7 +79,43 @@ class GetResponse(object):
         Returns:
             list: Campaign
         """
-        return self._request('/campaigns', ObjType.CAMPAIGN, payload=params)
+        local_params = deepcopy(params) if params else {}
+
+        if per_page:
+            assert 'perPage' not in local_params, "'perPage' was found in 'local_params' and in 'per_page'!"
+            assert 0 < per_page <= 1000, "The maximum number of campaigns per page is 1000 the minimum is 1!"
+            local_params['perPage'] = per_page
+        elif 'perPage' in local_params:
+            per_page = local_params['perPage']
+        if per_page:
+            per_page = int(per_page)
+            local_params['perPage'] = per_page
+
+        if page:
+            assert 'page' not in local_params, "'page' was found in 'local_params' and in 'page'! Use one only!"
+        elif 'page' in local_params:
+            page = local_params['page']
+        if page:
+            page = int(page)
+
+        # Get contacts paginated
+        all_campaigns = list()
+        paged_campaigns = True
+        current_page = deepcopy(page) if page else 1
+        paged_payload = deepcopy(local_params)
+        while paged_campaigns and current_page:
+            paged_payload['page'] = current_page
+            paged_campaigns = self._request('/campaigns', ObjType.CAMPAIGN, payload=paged_payload)
+            all_campaigns.extend(paged_campaigns)
+
+            # Stop the while loop if 'page' is given
+            if page:
+                current_page = False
+            # Move on to the next page if 'page' is not given
+            else:
+                current_page += 1
+
+        return all_campaigns
 
     def get_campaign(self, campaign_id, params=None):
         """Retrieves campaign information  
@@ -429,7 +465,7 @@ class GetResponse(object):
         """
         return self._request('/contacts/{}'.format(contact_id), ObjType.CONTACT, HttpMethod.DELETE, payload=params)
 
-    def get_custom_fields(self, params=None):
+    def get_custom_fields(self, per_page=None, page=None, params=None):
         """Retrieve custom fields for contacts
 
                 Args:
@@ -449,6 +485,49 @@ class GetResponse(object):
                 Returns:
                     list: CustomField
                 """
+        local_params = deepcopy(params) if params else {}
+
+        if per_page:
+            assert 'perPage' not in local_params, "'perPage' was found in 'local_params' and in 'per_page'!"
+            assert 0 < per_page <= 1000, "The maximum number of custom fields per page is 1000 the minimum is 1!"
+            local_params['perPage'] = per_page
+        elif 'perPage' in local_params:
+            per_page = local_params['perPage']
+        if per_page:
+            per_page = int(per_page)
+            local_params['perPage'] = per_page
+
+        if page:
+            assert 'page' not in local_params, "'page' was found in 'local_params' and in 'page'! Use one only!"
+        elif 'page' in local_params:
+            page = local_params['page']
+        if page:
+            page = int(page)
+
+        all_custom_fields = list()
+
+        # Get custom fields paginated
+        paged_custom_fields = True
+        current_page = deepcopy(page) if page else 1
+        paged_payload = deepcopy(local_params)
+        while paged_custom_fields and current_page:
+            paged_payload['page'] = current_page
+            paged_custom_fields = self._request('/custom-fields', ObjType.CUSTOM_FIELD, payload=paged_payload)
+
+            # Append the found contacts to the result
+            all_custom_fields.extend(paged_custom_fields)
+
+            # Stop the while loop if 'page' is given
+            if page:
+                current_page = False
+            # Move on to the next page if 'page' is not given
+            else:
+                current_page += 1
+
+        return all_custom_fields
+
+
+
         return self._request('/custom-fields', ObjType.CUSTOM_FIELD, payload=params)
 
     def get_custom_field(self, custom_field_id, params=None):
@@ -512,11 +591,7 @@ class GetResponse(object):
         """
         return self._request('/custom-fields/{}'.format(custom_field_id), ObjType.CUSTOM_FIELD, HttpMethod.DELETE)
 
-
-
-    # TODO: TAGS STUFF!!!
-    # -------------------
-    def get_tags(self, params=None):
+    def get_tags(self, per_page=None, page=None, params=None):
         """ Retrieve list of tags
 
         Args:
@@ -536,7 +611,46 @@ class GetResponse(object):
         Returns:
             list: Tags
         """
-        return self._request('/tags', ObjType.TAG, payload=params)
+        local_params = deepcopy(params) if params else {}
+
+        if per_page:
+            assert 'perPage' not in local_params, "'perPage' was found in 'local_params' and in 'per_page'!"
+            assert 0 < per_page <= 1000, "The maximum number of tags per page is 1000 the minimum is 1!"
+            local_params['perPage'] = per_page
+        elif 'perPage' in local_params:
+            per_page = local_params['perPage']
+        if per_page:
+            per_page = int(per_page)
+            local_params['perPage'] = per_page
+
+        if page:
+            assert 'page' not in local_params, "'page' was found in 'local_params' and in 'page'! Use one only!"
+        elif 'page' in local_params:
+            page = local_params['page']
+        if page:
+            page = int(page)
+
+        all_tags = list()
+
+        # Get tags paginated
+        paged_tags = True
+        current_page = deepcopy(page) if page else 1
+        paged_payload = deepcopy(local_params)
+        while paged_tags and current_page:
+            paged_payload['page'] = current_page
+            paged_tags = self._request('/tags', ObjType.TAG, payload=paged_payload)
+
+            # Append the found contacts to the result
+            all_tags.extend(paged_tags)
+
+            # Stop the while loop if 'page' is given
+            if page:
+                current_page = False
+            # Move on to the next page if 'page' is not given
+            else:
+                current_page += 1
+
+        return all_tags
 
     def get_tag(self, tag_id, params=None):
         """ Retrieve a tag definition
@@ -674,7 +788,7 @@ class GetResponse(object):
         local_params = deepcopy(params) if params else {}
 
         if per_page:
-            assert 'perPage' not in local_params, "'perPage' was found in 'local_params' and in 'per_page'! Use one only!"
+            assert 'perPage' not in local_params, "'perPage' was found in 'local_params' and in 'per_page'!"
             assert 0 < per_page <= 1000, "The maximum number of contacts per page is 1000 the minimum is 1!"
             local_params['perPage'] = per_page
         elif 'perPage' in local_params:
